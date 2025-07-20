@@ -17,6 +17,7 @@ class Agent:
         self.y = -1
         self.current_cooldown = 0
         self.current_splash_bombs = 0 # (Splash bombs reset each round, or are they persistent?)
+        self.current_tile_type = 3
         self.wetness = 0
         self.is_my_agent = False # Will set this based on my_id
 
@@ -40,6 +41,9 @@ def printAgents(Agents_list):
         print(agent_obj, file=sys.stderr, flush=True)
     print("-----------------------------------", file=sys.stderr, flush=True)
 
+def get_cover_type(x, y, grid):
+    return grid.get((x,y), 0)
+
 def has_reach_target(agent,target):
     return agent.x == target[0] and agent.y == target[1]
 
@@ -54,16 +58,45 @@ def get_wettest_enemy(enemies):
             max_wetness = agent.wetness
     return wettest_enemy_id
 
-def find_best_cover_position(agent, grid):
-    best_cover_type = -1
-    player_pos = (agent.x, agent.y)
+def find_best_cover(agent, grid):
+    directions  =  [(1, 0), (-1, 0), (0, 1), (0, -1)]
+    current_type_tile = 3
+    best_cover_type_tile = 0
+    best_cover_pos = (agent.x, agent.y)
+    for x, y in directions:
+        new_x, new_y = agent.x + x, agent.y + y
+        current_type_tile = get_cover_type(new_x, new_y, grid)
+        if current_type_tile > best_cover_type_tile:
+            best_cover_type_tile = current_type_tile
+            best_cover_pos = (new_x, new_y)
+    print(best_cover_type_tile, file=sys.stderr, flush=True)
+    return best_cover_pos
+
+def find_enemy_cover(agent, grid):
+    max_cover = 0
+    neighbors_pos = [(agent.x, agent.y-1), (agent.x, agent.y+1), (agent.x-1, agent.y), (agent.x+1, agent.y)]
+    for x, y in neighbors_pos:
+        cover_type = get_cover_type(x,y, grid)
+        if cover_type > max_cover:
+            max_cover = cover_type
+    return max_cover
+
+def get_best_target(Enemies, grid):
+    best_target= None
+    type_tile = 3
+    for agent in Enemies:
+        agent.current_cover_type = find_enemy_cover(agent, grid)
+        if agent.current_cover_type < type_tile:
+            best_target = agent
+            type_tile = get_cover_type(agent.x,agent.y,grid)
+    return best_target       
+
 
 Agents_list = {}
 Players = []
 Enemies = []
 my_id = int(input())  # Your player id (0 or 1)
 agent_data_count = int(input())  # Total number of agents in the game
-# print(agent_data_count, file=sys.stderr, flush=True)
 for i in range(agent_data_count):
     # agent_id: Unique identifier for this agent
     # player: Player id of this agent
@@ -95,15 +128,13 @@ for i in range(height):
         y = int(inputs[3*j+1])
         tile_type = int(inputs[3*j+2])
         grid[(x,y)] = tile_type
-target1 = (6, 1)
-target2 = (6, 3)
+print("type tile ["+str(get_cover_type(4, 0, grid))+"] height_grid = " + str(height) + " width = " + str(width), file=sys.stderr, flush=True)
 # game loop
-printAgents(Agents_list)
+# printAgents(Agents_list)
 while True:
-    Players = []
-    Enemies = []
+    Players.clear()
+    Enemies.clear()
     agent_count = int(input())  # Total number of agents still in the game
-    print(agent_count,file=sys.stderr, flush=True)
     for i in range(agent_count):
         # cooldown: Number of turns before this agent can shoot
         # wetness: Damage (0-100) this agent has taken
@@ -118,13 +149,16 @@ while True:
     Enemies = [agent for agent in Enemies if agent.wetness < 100]
     my_agent_count = int(input())  # Number of alive agents controlled by you
     wettest_enemy_id = get_wettest_enemy(Enemies)
-    print(wettest_enemy_id, file=sys.stderr, flush=True)
-
-    for agent in Players:
-        if wettest_enemy_id != -1:
-            print(f"{agent.agent_id};SHOOT {wettest_enemy_id}")
-        else:
-            print(f"{agent.agent_id};HUNKER_DOWN;")
+    target = get_best_target(Enemies, grid)
+    if target != None:
+        for agent in Players:
+            next_pos = find_best_cover(agent, grid)
+            # print(f"{agent.agent_id};MOVE {next_pos[0]} {next_pos[1]}; SHOOT {target.agent_id}")
+            print(f"{agent.agent_id};MOVE {agent.x} {agent.y+1}; SHOOT {target.agent_id}")
+        # if wettest_enemy_id != -1:
+        #     print(f"{agent.agent_id};SHOOT {wettest_enemy_id}")
+        # else:
+        #     print(f"{agent.agent_id};HUNKER_DOWN;")
     # for i in range(my_agent_count):
     #     print(f"{player_one.agent_id}THROW {player_one.x-1} {player_one.y}")
     #     print(f"{player_two.agent_id}THROW {player_two.x+1} {player_one.y}")
